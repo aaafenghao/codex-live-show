@@ -1,0 +1,20 @@
+const fs=require('node:fs'),path=require('node:path'),{execFileSync}=require('node:child_process');
+const root=path.join(__dirname,'..');
+const electron=path.dirname(require.resolve('electron/package.json'));
+const runtime=path.join(electron,'dist','Electron.app');
+if(!fs.existsSync(runtime))throw new Error('Run npm run prepare:runtime first.');
+const productName=require(path.join(root,'package.json')).productName;
+const out=path.join(root,'dist',productName+'.app');
+if(fs.existsSync(out)){const backup=out+'.previous-'+Date.now();fs.renameSync(out,backup);console.log('Previous app saved: '+backup);}
+fs.mkdirSync(path.dirname(out),{recursive:true});
+execFileSync('/usr/bin/ditto',[runtime,out]);
+const resources=path.join(out,'Contents','Resources');
+const appRoot=path.join(resources,'app');
+fs.mkdirSync(appRoot,{recursive:true});
+for(const name of ['src','scripts'])fs.cpSync(path.join(root,name),path.join(appRoot,name),{recursive:true});
+fs.copyFileSync(path.join(root,'package.json'),path.join(appRoot,'package.json'));
+const plist=path.join(out,'Contents','Info.plist');
+for(const [key,value] of [['CFBundleName',productName],['CFBundleDisplayName',productName],['CFBundleIdentifier','local.songshu.codex-session-clothesline'],['CFBundleShortVersionString','0.1.0'],['CFBundleVersion','1']])execFileSync('/usr/libexec/PlistBuddy',['-c','Set :'+key+' '+value,plist]);
+execFileSync('/usr/libexec/PlistBuddy',['-c','Add :LSUIElement bool true',plist]);
+execFileSync('/usr/bin/codesign',['--force','--deep','--sign','-',out],{stdio:'inherit'});
+console.log('Packaged: '+out);

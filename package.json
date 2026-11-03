@@ -1,0 +1,20 @@
+{
+  "name": "codex-live-show",
+  "productName": "codex-live-show",
+  "version": "0.1.0",
+  "description": "金箍水晶 Codex 会话挂件",
+  "main": "src/main.cjs",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/*.test.cjs",
+    "check": "node --check src/main.cjs && node --check src/preload.cjs && node --check src/renderer.js && node --check src/fireworks.js && node --check src/celebration.cjs",
+    "pack": "node scripts/package.cjs",
+    "prepare:runtime": "node scripts/prepare-runtime.cjs",
+    "hooks:install": "node scripts/install-hooks.cjs",
+    "hooks:uninstall": "node scripts/install-hooks.cjs --uninstall"
+  },
+  "devDependencies": {
+    "electron": "45.2.1"
+  }
+}

@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.DS_Store
+*.log
+test-artifacts/
+
+# Local design iterations and session-specific work notes.
+design/
+docs/
+.env
+.env.*
+!.env.example
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
