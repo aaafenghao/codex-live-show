@@ -2,6 +2,18 @@
 
 macOS Apple Silicon 桌面透明挂件。一根金箍棒，两组直挂水晶会话卡。每两秒读取本地 Codex 状态，完成记录保存在本机。
 
+## 界面预览
+
+以下截图中的会话名称、工作空间路径、用户名、时间与统计数量均已替换为演示数据。
+
+### 桌面会话挂件
+
+![codex-live-show 桌面挂件，所有任务信息均为脱敏演示数据](assets/screenshots/widget-demo.png)
+
+### 会话历史查询
+
+![codex-live-show 会话历史，所有会话及路径均为脱敏演示数据](assets/screenshots/history-demo.png)
+
 ## 启动
 
 双击 `dist/codex-live-show.app`，或运行：
