@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('clothesline',Object.freeze({
  resize:height=>ipcRenderer.send('window:resize',height),
  setMousePassthrough:value=>ipcRenderer.send('window:passthrough',value),
  setScale:value=>ipcRenderer.invoke('window:scale',value),
+ setPinned:value=>ipcRenderer.invoke('window:pinned',value),
  getPreferences:()=>ipcRenderer.invoke('preferences:get'),
  savePreferences:value=>ipcRenderer.invoke('preferences:save',value),
  quit:()=>ipcRenderer.send('app:quit')
