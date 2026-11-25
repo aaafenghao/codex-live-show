@@ -81,3 +81,15 @@ body[data-drawer-side=left] .drawer-tab{border-radius:0 12px 12px 0}body[data-dr
 .move-window{display:flex;align-items:center;gap:5px;border:0;border-radius:5px;padding:5px 8px;min-height:28px;font:inherit;color:inherit;background:#f0f7f1dc;cursor:grab;touch-action:none;-webkit-app-region:no-drag}
 .move-window:active{cursor:grabbing}.move-window>*{pointer-events:none}.move-window svg{width:12px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;opacity:.65}
 .layout-board .move-window{background:transparent}.group.is-empty .column-chevron{visibility:hidden}
+
+/* Size the native board for its visible columns; secondary actions open on demand. */
+.more-panel{display:flex;flex-wrap:wrap;gap:5px;margin:8px 0;padding:8px;background:#f2f6f1;border:1px solid #c6d6c8;border-radius:7px}
+.more-panel button{border:1px solid #bdccca;background:#f8fbf9;border-radius:5px;min-height:28px;padding:5px 8px;color:#344d4b;font:inherit;font-size:11px}
+.more-panel button:hover{background:#fff}.more-panel #menuLayout{display:none}
+.layout-board .page{padding:10px}.layout-board .heading{padding-bottom:8px;gap:6px;flex-wrap:nowrap}.layout-board .heading h1{font-size:12px;min-width:0}.layout-board .controls{gap:4px;flex-wrap:nowrap}.layout-board .controls button{padding:5px 7px}
+.layout-board .more-panel{background:#f3f0e9;border-color:#ded8cc}.layout-board .more-panel button{background:#faf8f3;border-color:#ded8cc;color:#524b40}
+.layout-board .scene{margin-top:8px}.layout-board .staff{display:none}.layout-board .crystal{padding:10px}.layout-board .card-copy{gap:5px}.layout-board .health{flex-wrap:wrap;gap:5px;margin-top:8px;font-size:10px}.layout-board .health #health{max-width:100%}
+.board-summary .page{padding:8px;border-radius:10px}.board-summary .heading{border:0;padding:0;min-height:28px}.board-summary .heading h1{font-size:11px}.board-summary .move-window{padding:3px 4px}.board-summary #layoutToggle{display:none}.board-summary .scene{margin-top:6px}
+.board-summary .groups{gap:5px;padding:0}.board-summary .groups.all-collapsed .group-head{height:32px;padding:4px 7px;gap:5px;font-size:11px}.board-summary .groups.all-collapsed .group-head strong{font-size:11px}.board-summary .column-chevron{width:10px;height:10px}
+.board-summary .health{display:none}.board-summary.has-notice .health{display:flex}.board-summary .health button{display:none}.board-summary .health #health{padding:3px 0;background:none}
+.board-summary .more-panel #menuLayout{display:block}

@@ -1,6 +1,6 @@
-function drawerBounds({area,origin,collapsed,side='right',layout='crystal',scale=1,crystalColumns=2}){
-  const width=Math.min(area.width,Math.round((collapsed?48:layout==='board'?900:crystalColumns>=3?1040:720)*scale));
-  const height=Math.min(area.height,Math.round(collapsed?216*scale:Math.max(180,origin.height||500)));
+function drawerBounds({area,origin,collapsed,side='right',layout='crystal',scale=1,crystalColumns=2,boardColumns=3}){
+  const width=Math.min(area.width,Math.round((collapsed?48:layout==='board'?[360,440,700,920][boardColumns]:crystalColumns>=3?1040:720)*scale));
+  const height=Math.min(area.height,Math.round(collapsed?216*scale:Math.max((layout==='board'?60:180)*scale,origin.height||500)));
   const clamp=(value,min,max)=>Math.round(Math.max(min,Math.min(value,max)));
   return {x:collapsed?(side==='left'?area.x:area.x+area.width-width):clamp(origin.x,area.x,area.x+area.width-width),y:clamp(origin.y,area.y,area.y+area.height-height),width,height};
 }
@@ -11,7 +11,7 @@ class Drawer{
     if(this.dragging)return this.state();
     const p=this.preferences,origin={...this.window.getBounds(),...p.expandedBounds,...p.position};
     const area=this.screen.getDisplayMatching(origin).workArea;
-    const bounds=drawerBounds({area,origin,...this.state(),scale:p.scale||1,crystalColumns:this.columns||2});
+    const bounds=drawerBounds({area,origin,...this.state(),scale:p.scale||1,crystalColumns:this.columns??2,boardColumns:this.columns??3});
     this.window.setBounds(bounds,false);
     const state=this.state(),key=JSON.stringify(state);
     if(key!==this.lastView){this.lastView=key;this.window.webContents.send('window:view',state);this.onChange?.(state);}
@@ -34,8 +34,8 @@ class Drawer{
   resize(height,columns){
     if(this.state().collapsed||!Number.isFinite(height))return;
     if(this.dragging){this.pendingResize=[height,columns];return;}
-    this.columns=Number.isInteger(columns)&&columns>=3?3:2;
-    this.preferences.expandedBounds={...this.window.getBounds(),height:Math.max(180,Math.ceil(height*(this.preferences.scale||1)))};
+    this.columns=Number.isInteger(columns)?Math.max(0,Math.min(3,columns)):3;
+    this.preferences.expandedBounds={...this.window.getBounds(),height:Math.max((this.state().layout==='board'?60:180)*(this.preferences.scale||1),Math.ceil(height*(this.preferences.scale||1)))};
     this.apply();
   }
 }

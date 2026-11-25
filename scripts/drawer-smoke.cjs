@@ -70,13 +70,24 @@ module.exports=async function({win,screen,drawer,windowInput,monitor,rendererErr
     await new Promise(r=>setTimeout(r,250));
     const measured=await js("({page:document.querySelector('.page').scrollHeight,groups:document.querySelector('.groups').getBoundingClientRect().height,folded:[...document.querySelectorAll('.group.is-collapsed')].map(g=>g.getBoundingClientRect().height)})");
     const zoom=win.webContents.getZoomFactor(),area=screen.getDisplayMatching(win.getBounds()).workArea;
-    assert.ok(Math.abs(win.getBounds().height-Math.min(area.height,Math.max(180,Math.ceil((measured.page+20)*zoom))))<=2,'native height must follow visible content after '+folded.join(','));
+    assert.ok(Math.abs(win.getBounds().height-Math.min(area.height,Math.max(60*zoom,Math.ceil((measured.page+20)*zoom))))<=2,'native height must follow visible content after '+folded.join(','));
     assert.ok(measured.folded.every(height=>height<=152),'folded columns never stretch');
     if(folded.length===3)assert.ok(measured.groups<=50,'all folded columns become one compact horizontal row');
-    foldCases.push({folded,groups:measured.groups,windowHeight:win.getBounds().height});
+    assert.equal(win.getBounds().width,Math.min(area.width,Math.round([360,440,700,920][3-folded.length]*zoom)),'width adapts to visible columns');
+    assert.ok(await js('document.body.scrollWidth<=innerWidth'),'adaptive width must not overflow');
+    foldCases.push({folded,groups:measured.groups,windowWidth:win.getBounds().width,windowHeight:win.getBounds().height});
     if(folded.length>0)fs.writeFileSync(path.join(output,'folded-'+folded.join('-')+'.png'),(await win.webContents.capturePage()).toPNG());
   }
   checks.push('all seven manual fold combinations resize the native window');
+  await until("!document.body.classList.contains('has-notice')&&innerHeight<=120");
+  assert.ok(win.getBounds().height/win.webContents.getZoomFactor()<=120,'fully folded board is a small status strip');
+  await js("document.querySelector('#moreControls').click()");await until("!document.querySelector('#morePanel').hidden");
+  await new Promise(r=>setTimeout(r,250));assert.ok(await js("document.querySelector('#quit').getBoundingClientRect().bottom<innerHeight"),'secondary controls remain inside the resized window');
+  await js("document.querySelector('#menuHistory').click()");await until("!document.querySelector('#history').hidden");await new Promise(r=>setTimeout(r,250));assert.ok(win.getBounds().width/win.webContents.getZoomFactor()>=439,'history opens at readable width');
+  await js("document.querySelector('#closeHistory').click()");await until("document.querySelector('#history').hidden");await new Promise(r=>setTimeout(r,250));
+  assert.ok(Math.abs(win.getBounds().width/win.webContents.getZoomFactor()-360)<1,'closing history restores compact width');checks.push('compact status strip, secondary controls and history adapt without clipping');
+  fs.writeFileSync(path.join(output,'adaptive-summary.png'),(await win.webContents.capturePage()).toPNG());
+
   assert.equal(rendererErrors.length,0);assert.ok(windowInput.regions.length>0);
   const result={checks,board,spacing,unequal,foldCases,errors:rendererErrors,bounds:win.getBounds()};fs.writeFileSync(path.join(output,'result.json'),JSON.stringify(result,null,2));console.log(JSON.stringify(result));
 };

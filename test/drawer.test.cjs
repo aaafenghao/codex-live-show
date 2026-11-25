@@ -8,3 +8,10 @@ test('layout refresh during dragging cannot pull the window back; release rememb
  assert.equal(typeof drawer.beginDrag,'function');drawer.beginDrag();bounds.x=300;bounds.y=200;drawer.resize(400,2);assert.equal(bounds.x,300);assert.equal(bounds.height,500);
  drawer.endDrag();assert.deepEqual(preferences.position,{x:300,y:200});assert.equal(bounds.height,400);drawer.resize(450,2);assert.equal(bounds.x,300);assert.equal(bounds.y,200);
 });
+test('board width follows open columns and a fully folded board can shrink below 180px',()=>{
+ const area={x:0,y:0,width:1600,height:1000},origin={x:300,y:200,height:90};
+ const widths=[360,440,700,920];for(let count=0;count<=3;count++){const b=drawerBounds({area,origin,collapsed:false,layout:'board',boardColumns:count,scale:1});assert.equal(b.width,widths[count]);assert.equal(b.height,90);}
+});
+test('adaptive board dimensions retain user zoom and stay inside the screen',()=>{
+ const b=drawerBounds({area:{x:-1600,y:0,width:1600,height:1000},origin:{x:-100,y:20,height:100},collapsed:false,layout:'board',boardColumns:0,scale:1.25});assert.equal(b.width,450);assert.equal(b.x,-450);
+});
