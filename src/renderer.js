@@ -72,6 +72,8 @@ function bindWindowDrag(handle){
   handle.addEventListener('lostpointercapture',()=>{staffDragController.up();releaseInteraction()});
   handle.addEventListener('dblclick',event=>{event.preventDefault();event.stopPropagation()});
 }
+document.addEventListener('pointerup',event=>staffDragController.up({x:event.screenX,y:event.screenY}),true);
+document.addEventListener('pointercancel',()=>staffDragController.up(),true);
 bindWindowDrag(staff);bindWindowDrag($('moveWindow'));window.addEventListener('blur',()=>staffDragController.up());
 function updateInputRegions(){const regions=[...document.querySelectorAll('button,input,select,.staff,.history,.board-list')].map(element=>{const r=element.getBoundingClientRect(),extra=element.id==='staff'?7:0;return{x:r.x-extra,y:r.y-extra,width:r.width+extra*2,height:r.height+extra*2};}).filter(r=>r.width>0&&r.height>0&&r.y+r.height>0&&r.y<innerHeight);api.setInputRegions?.(regions);}
 let sizeTimer;function resize(){clearTimeout(sizeTimer);sizeTimer=setTimeout(()=>{if(!view.collapsed)api.resize(Math.ceil(document.querySelector('.page').scrollHeight+20),Math.max(document.querySelectorAll('.group:not(.is-collapsed)').length,$('history').hidden?0:1));updateInputRegions();},80)}

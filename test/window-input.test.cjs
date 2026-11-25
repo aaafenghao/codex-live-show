@@ -16,3 +16,10 @@ test('invalid hit regions cannot force a whole screen input capture',()=>{
 test('pointer capture keeps mouse input enabled until the drag ends',()=>{
  const {input,calls,move}=fixture();input.setHeld(true);move({x:9999,y:9999});input.tick();assert.equal(calls.at(-1),false);input.setHeld(false);assert.equal(calls.at(-1),true);
 });
+test('solid board captures blank areas and restores transparent hit testing when disabled',()=>{
+ const {input,calls,move}=fixture();input.setRegions([{x:10,y:10,width:70,height:30}]);move({x:1800,y:400});input.tick();assert.equal(calls.at(-1),true);
+ assert.equal(typeof input.setCaptureAll,'function');input.setCaptureAll(true);assert.equal(calls.at(-1),false);
+ move({x:3000,y:400});input.tick();assert.equal(calls.at(-1),false);
+ move({x:1800,y:400});input.tick();assert.equal(calls.at(-1),false);
+ input.setCaptureAll(false);assert.equal(calls.at(-1),true);
+});

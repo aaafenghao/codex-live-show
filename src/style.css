@@ -93,3 +93,7 @@ body[data-drawer-side=left] .drawer-tab{border-radius:0 12px 12px 0}body[data-dr
 .board-summary .groups{gap:5px;padding:0}.board-summary .groups.all-collapsed .group-head{height:32px;padding:4px 7px;gap:5px;font-size:11px}.board-summary .groups.all-collapsed .group-head strong{font-size:11px}.board-summary .column-chevron{width:10px;height:10px}
 .board-summary .health{display:none}.board-summary.has-notice .health{display:flex}.board-summary .health button{display:none}.board-summary .health #health{padding:3px 0;background:none}
 .board-summary .more-panel #menuLayout{display:block}
+
+/* The entire unused board title bar is a hit-tested drag handle. */
+.layout-board .heading h1{flex:1;margin-right:0}
+.layout-board .move-window{width:100%;justify-content:flex-start}

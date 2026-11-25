@@ -6,12 +6,17 @@ module.exports=async function({win,screen,drawer,windowInput,monitor,rendererErr
   const checks=[];
   await until("document.querySelector('#drawerTab')&&!document.querySelector('#drawerTab').hidden");
   assert.ok(Math.abs(win.webContents.getZoomFactor()-(await js('window.clothesline.getPreferences().then(p=>p.scale||1)')))<.001,'startup restores page zoom');
-  assert.ok(win.getBounds().width<=60);assert.ok(win.isAlwaysOnTop());checks.push('collapsed drawer is narrow and above normal windows');
+  assert.equal(windowInput.captureAll,true,'solid edge drawer never passes clicks to the desktop');assert.ok(win.getBounds().width<=60);assert.ok(win.isAlwaysOnTop());checks.push('collapsed drawer is narrow and above normal windows');
   await js("document.querySelector('#expandDrawer').click()");await until("!document.body.classList.contains('drawer-collapsed')");
   await js("window.clothesline.setPinned(true)");await js("window.clothesline.setLayout('board')");await until("document.body.classList.contains('layout-board')");
   await until("document.querySelectorAll('.board-list .crystal').length>0");
   const board=await js("({overflow:document.body.scrollWidth>innerWidth,groups:[...document.querySelectorAll('.group-head')].map(e=>e.textContent),waiting:[...document.querySelectorAll('.waiting .card-status')].map(e=>e.textContent)})");
-  assert.equal(board.overflow,false);assert.ok(board.waiting.includes('需要输入'));assert.ok(board.waiting.includes('需要审批'));
+  assert.equal(windowInput.captureAll,true,'solid board never passes blank-area clicks to the desktop');assert.equal(board.overflow,false);assert.ok(board.waiting.includes('需要输入'));assert.ok(board.waiting.includes('需要审批'));
+  await new Promise(r=>setTimeout(r,200));
+  const headerDrag=await js(`(()=>{const title=document.querySelector('#moveWindow span').getBoundingClientRect(),handle=document.querySelector('#moveWindow').getBoundingClientRect(),controls=document.querySelector('.controls').getBoundingClientRect();const x=(title.right+controls.left)/2,y=handle.y+handle.height/2;return {x,y,target:document.elementFromPoint(x,y)?.closest('button')?.id,handleRight:handle.right,controlsLeft:controls.left}})()`);
+  assert.equal(headerDrag.target,'moveWindow','blank board header should belong to the drag handle');
+  assert.ok(windowInput.regions.some(r=>headerDrag.x>=r.x&&headerDrag.x<r.x+r.width&&headerDrag.y>=r.y&&headerDrag.y<r.y+r.height),'header drag space must not pass mouse input through');
+  assert.ok(headerDrag.handleRight<=headerDrag.controlsLeft,'drag handle never overlaps toolbar buttons');checks.push('blank board header is draggable without covering controls');
   fs.writeFileSync(path.join(output,'board.png'),(await win.webContents.capturePage()).toPNG());checks.push('board renders three real renderer groups without overflow');
   for(const scale of [.65,1,1.25]){
     await js(`window.clothesline.setScale(${scale})`);await until("document.body.scrollWidth<=innerWidth");
@@ -24,9 +29,10 @@ module.exports=async function({win,screen,drawer,windowInput,monitor,rendererErr
   }
   checks.push('both screen edges and restore work at 65%, 100%, 125%');
   await js("window.clothesline.setScale(1)");await js("document.querySelector('#layoutToggle').click()");await until("!document.body.classList.contains('layout-board')");
+  assert.equal(windowInput.captureAll,false,'crystal layout keeps transparent-area passthrough');
   const positions=await js("[...document.querySelectorAll('.running .crystal')].map(e=>({x:e.getBoundingClientRect().x,y:e.getBoundingClientRect().y}))");assert.equal(positions.length,2);assert.ok(Math.abs(positions[0].x-positions[1].x)>80,'running cards use two separate columns');checks.push('crystal running cards remain in two columns');
   await new Promise(r=>setTimeout(r,400));await until("getComputedStyle(document.querySelector('.glass')).display!=='none'");fs.writeFileSync(path.join(output,'crystal.png'),(await win.webContents.capturePage()).toPNG());
-  await js("document.querySelector('#layoutToggle').click()");await until("document.body.classList.contains('layout-board')");checks.push('layout round trip');
+  await js("document.querySelector('#layoutToggle').click()");await until("document.body.classList.contains('layout-board')");assert.equal(windowInput.captureAll,true,'returning to board restores full mouse capture');checks.push('layout round trip and layout-specific mouse capture');
   await until("document.querySelectorAll('.dismiss-completed').length>0");await js("document.querySelector('.dismiss-completed').click()");await until("document.querySelectorAll('.dismiss-completed').length===0");checks.push('completion dismissal');
   monitor.stop();
   monitor.sessions=new Map([['single-done',{id:'single-done',title:'仅一条完成记录',state:'completed',completedAt:Date.now(),updatedAt:Date.now()}]]);
