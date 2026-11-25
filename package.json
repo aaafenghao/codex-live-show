@@ -12,7 +12,8 @@
     "pack": "node scripts/package.cjs",
     "prepare:runtime": "node scripts/prepare-runtime.cjs",
     "hooks:install": "node scripts/install-hooks.cjs",
-    "hooks:uninstall": "node scripts/install-hooks.cjs --uninstall"
+    "hooks:uninstall": "node scripts/install-hooks.cjs --uninstall",
+    "test:drawer": "node scripts/run-drawer-smoke.cjs"
   },
   "devDependencies": {
     "electron": "45.2.1"

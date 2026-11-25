@@ -6,9 +6,10 @@ const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 const { StringDecoder } = require('node:string_decoder');
 const { SessionStore } = require('./store.cjs');
+const { recordInput, refreshWaiting } = require('./input-state.cjs');
 const run = promisify(execFile);
 const DEFAULT_DATA_DIR = path.join(os.homedir(), 'Library/Application Support/Codex Session Clothesline');
-const STATES = new Set(['running', 'completed', 'interrupted', 'unknown']);
+const STATES = new Set(['running', 'waiting', 'completed', 'interrupted', 'unknown']);
 
 class SessionMonitor extends EventEmitter {
   constructor({ codexHome = path.join(os.homedir(), '.codex'), dataDir = DEFAULT_DATA_DIR, interval = 2000 } = {}) {
@@ -46,17 +47,19 @@ class SessionMonitor extends EventEmitter {
     if (time === s.updatedAt && ['completed', 'interrupted'].includes(s.state) && ['task_started', 'UserPromptSubmit', 'PermissionRequest', 'PreToolUse', 'PostToolUse'].includes(kind) && (!fields.turnId || fields.turnId === s.turnId)) return;
     switch (kind) {
       case 'task_started': case 'UserPromptSubmit':
-        s.state = 'running'; s.phase = '思考中'; s.startedAt = time; s.completedAt = null; break;
+        s.state = 'running'; s.phase = '思考中'; s.startedAt = time; s.completedAt = null; s.turnEnded = false; s.pendingInputs = {}; delete s.waitReason; break;
       case 'task_complete': case 'Stop':
-        s.state = 'completed'; s.phase = '已完成'; s.completedAt = time; break;
+        s.state = 'completed'; s.phase = '已完成'; s.completedAt = time; s.turnEnded = true; delete s.waitReason; refreshWaiting(s, time); break;
       case 'turn_aborted': case 'Interrupt':
-        s.state = 'interrupted'; s.phase = '已中断'; s.completedAt = time; break;
+        s.state = 'interrupted'; s.phase = '已中断'; s.completedAt = time; s.pendingInputs = {}; delete s.waitReason; break;
       case 'PermissionRequest':
-        s.state = 'running'; s.phase = '等待审批'; break;
+        s.state = 'waiting'; s.waitReason = 'approval'; s.phase = '等待审批'; break;
       case 'PreToolUse':
+        if (s.state === 'waiting' && s.waitReason === 'approval') { s.state = 'running'; delete s.waitReason; }
         if (s.state !== 'running') return;
         s.phase = '执行工具'; break;
       case 'PostToolUse':
+        if (s.state === 'waiting' && s.waitReason === 'approval') { s.state = 'running'; delete s.waitReason; }
         if (s.state !== 'running') return;
         s.phase = '处理中'; break;
       case 'SessionStart': return;
@@ -68,7 +71,7 @@ class SessionMonitor extends EventEmitter {
     }
     s.updatedAt = time;
     if (typeof fields.turnId === 'string') s.turnId = fields.turnId;
-    if (kind === 'task_complete' || kind === 'Stop') this.emit('completed', { ...s });
+    if (s.state === 'completed' && (kind === 'task_complete' || kind === 'Stop')) this.emit('completed', { ...s });
   }
   recordLine(line, fallbackId) {
     let row; try { row = JSON.parse(line); } catch { return; }
@@ -82,8 +85,37 @@ class SessionMonitor extends EventEmitter {
       if (s && !this.explicitNames.has(id) && typeof meta.title === 'string') s.title = meta.title;
       return;
     }
+    if (row.type === 'response_item' && row.payload && !this.excluded.has(fallbackId)) {
+      if (this.desktopOnly && !this.desktopIds.has(fallbackId)) return;
+      const p = row.payload;
+      const isRequest = p.type === 'function_call' && /(?:^|\.)request_user_input(?:_async)?$/.test(p.name || '');
+      const s = this.sessions.get(fallbackId) || (isRequest ? this.ensure(fallbackId) : null);
+      if (s) recordInput(s, p, Date.parse(row.timestamp));
+      return;
+    }
     if (row.type !== 'event_msg' || !row.payload) return;
     this.apply(fallbackId, row.payload.type, Date.parse(row.timestamp), { turnId: row.payload.turn_id });
+  }
+  recentTurnOffset(fd, size) {
+    // Replay the current turn, bounded to 16 MiB, so input calls before the tail are retained.
+    const floor = Math.max(0, size - 16 * 1024 * 1024);
+    let position = size, carry = Buffer.alloc(0);
+    while (position > floor) {
+      const start = Math.max(floor, position - 128 * 1024);
+      const buffer = Buffer.alloc(position - start); fs.readSync(fd, buffer, 0, buffer.length, start);
+      const joined = Buffer.concat([buffer, carry]); let end = joined.length;
+      for (let index = joined.length - 1; index >= 0; index--) {
+        if (joined[index] !== 10) continue;
+        const lineStart = index + 1;
+        try { const row = JSON.parse(joined.subarray(lineStart, end).toString('utf8'));
+          if (row.type === 'event_msg' && row.payload?.type === 'task_started') return start + lineStart;
+        } catch {}
+        end = index;
+      }
+      carry = joined.subarray(0, end); position = start;
+      if (start === 0) { try { const row = JSON.parse(carry.toString('utf8')); if (row.type === 'event_msg' && row.payload?.type === 'task_started') return 0; } catch {} }
+    }
+    return null;
   }
   readRollout(file, id) {
     if (this.excluded.has(id)) return;
@@ -98,13 +130,20 @@ class SessionMonitor extends EventEmitter {
         if (firstNewline >= 0) this.recordLine(text.slice(0, firstNewline), id);
       } finally { fs.closeSync(headerFd); }
       if (this.excluded.has(id)) return;
-      // shortcut: initial history reads the last 1 MiB; very old starts outside that tail stay unknown.
+      let turnOffset; const recoveryFd = fs.openSync(file, 'r');
+      try { turnOffset = this.recentTurnOffset(recoveryFd, stat.size); } finally { fs.closeSync(recoveryFd); }
+      const existing = this.sessions.get(id);
+      if (turnOffset !== null && existing && existing.inputStateVersion !== 1) {
+        existing.state = 'unknown'; existing.updatedAt = 0; existing.pendingInputs = {}; delete existing.waitReason; existing.inputStateVersion = 1;
+      }
+      // shortcut: turns larger than 16 MiB retain the older bounded-tail recovery.
       cursor = { offset: Math.max(0, stat.size - 1024 * 1024), ino: stat.ino, tail: '', decoder: new StringDecoder('utf8'), skipFirst: stat.size > 1024 * 1024, initialOffset: Math.max(0, stat.size - 1024 * 1024), recovered: false };
+      if (turnOffset !== null) { cursor.offset = turnOffset; cursor.initialOffset = turnOffset; cursor.skipFirst = false; }
     }
     if (stat.size === cursor.offset) return;
     const fd = fs.openSync(file, 'r');
     try {
-      const size = Math.min(stat.size - cursor.offset, 2 * 1024 * 1024), buffer = Buffer.alloc(size);
+      const size = Math.min(stat.size - cursor.offset, (cursor.recovered ? 2 : 16) * 1024 * 1024), buffer = Buffer.alloc(size);
       const bytes = fs.readSync(fd, buffer, 0, size, cursor.offset); cursor.offset += bytes;
       const lines = (cursor.tail + cursor.decoder.write(buffer.subarray(0, bytes))).split('\n');
       cursor.tail = lines.pop();
