@@ -23,3 +23,15 @@ test('disabled and paused effects do not schedule celebrations',()=>{
 test('multiple requests coalesce and only their own completion can close an overlay',()=>{
  const c=new Celebration({BrowserWindow:Window,screen});c.request();const pending=c.pending;c.request();assert.equal(c.pending,pending);c.close();c.play();const before=c.windows.size;c.done(-1);assert.equal(c.windows.size,before);c.done([...c.windows][0].webContents.id);assert.equal(c.windows.size,before-1);c.close();
 });
+test('scope toggles between the current display and all connected displays at playback time',()=>{
+ let scope='current',connected=[...displays];const liveScreen={...screen,getAllDisplays:()=>connected};
+ const c=new Celebration({BrowserWindow:Window,screen:liveScreen,targetDisplay:()=>displays[1],scope:()=>scope});
+ try{
+ c.play();assert.deepEqual([...c.windows].map(w=>w.options.x),[1512]);c.close();
+ scope='all';c.play();assert.deepEqual([...c.windows].map(w=>w.options.x),[0,1512]);
+ const first=[...c.windows][0];c.done(first.webContents.id);assert.equal(c.windows.size,1);c.close();
+ connected=[displays[0]];c.play({preview:true});assert.equal(c.windows.size,1);c.close();
+ connected=[...displays];c.play({preview:true,forceFull:true});assert.equal(c.windows.size,2);c.close();
+ scope='invalid';c.play();assert.equal(c.windows.size,1);
+ }finally{c.close()}
+});

@@ -1,5 +1,5 @@
 const assert=require('node:assert/strict');const fs=require('node:fs'),path=require('node:path');
-module.exports=async function({win,screen,drawer,windowInput,monitor,rendererErrors,output}){
+module.exports=async function({win,screen,drawer,windowInput,monitor,celebration,dataDir,rendererErrors,output}){
   fs.mkdirSync(output,{recursive:true});
   const js=source=>win.webContents.executeJavaScript(source);
   async function until(source){for(let i=0;i<50;i++){if(await js(source))return;await new Promise(r=>setTimeout(r,100));}throw Error('Timed out: '+source);}
@@ -94,6 +94,27 @@ module.exports=async function({win,screen,drawer,windowInput,monitor,rendererErr
   assert.ok(Math.abs(win.getBounds().width/win.webContents.getZoomFactor()-360)<1,'closing history restores compact width');checks.push('compact status strip, secondary controls and history adapt without clipping');
   fs.writeFileSync(path.join(output,'adaptive-summary.png'),(await win.webContents.capturePage()).toPNG());
 
+  await js("document.querySelector('#moreControls').click()");await until("!document.querySelector('#morePanel').hidden");
+  assert.equal(await js("document.querySelector('#fireworksScope').textContent"),'烟花：当前屏幕');
+  const scopeChecks=[];
+  for(const scope of ['all','current']){
+    await js("document.querySelector('#fireworksScope').click()");await until(`document.querySelector('#fireworksScope').getAttribute('aria-pressed')==='${scope==='all'}'`);
+    assert.equal(await js("window.clothesline.getPreferences().then(p=>p.fireworksScope)"),scope);
+    for(let retry=0;retry<30;retry++){if(JSON.parse(fs.readFileSync(path.join(dataDir,'preferences.json'),'utf8')).fireworksScope===scope)break;await new Promise(r=>setTimeout(r,100));}assert.equal(JSON.parse(fs.readFileSync(path.join(dataDir,'preferences.json'),'utf8')).fireworksScope,scope,'scope persists to disk');
+    await js("window.clothesline.previewFireworks()");
+    const expected=scope==='all'?screen.getAllDisplays().length:1;assert.equal(celebration.windows.size,expected);
+    await new Promise(r=>setTimeout(r,700));assert.equal(celebration.errors.length,0);celebration.close();assert.equal(celebration.windows.size,0);
+    scopeChecks.push({scope,screens:expected});
+  }
+  await js("window.clothesline.savePreferences({fireworksScope:'invalid'})");assert.equal(await js("window.clothesline.getPreferences().then(p=>p.fireworksScope)"),'current','invalid scope is rejected');
+  await js("window.clothesline.savePreferences({fireworksScope:'all',paused:false})");
+  // Restore the fixture's disabled effect setting only for this explicit completion check.
+  const originalMode=celebration.mode;celebration.mode=()=> 'full';
+  monitor.emit('completed',{id:'scope-completion',state:'completed',completedAt:Date.now(),updatedAt:Date.now()});
+  await new Promise(r=>setTimeout(r,1200));assert.equal(celebration.windows.size,screen.getAllDisplays().length,'actual completion uses all-screen preference');celebration.close();celebration.mode=originalMode;
+  await js("window.clothesline.savePreferences({paused:true,fireworksScope:'current'})");
+  fs.writeFileSync(path.join(output,'fireworks-scope.png'),(await win.webContents.capturePage()).toPNG());
+  checks.push('fireworks scope button, persisted preference, preview and completion screen selection');
   assert.equal(rendererErrors.length,0);assert.ok(windowInput.regions.length>0);
-  const result={checks,board,spacing,unequal,foldCases,errors:rendererErrors,bounds:win.getBounds()};fs.writeFileSync(path.join(output,'result.json'),JSON.stringify(result,null,2));console.log(JSON.stringify(result));
+  const result={checks,board,spacing,unequal,foldCases,scopeChecks,errors:rendererErrors,bounds:win.getBounds()};fs.writeFileSync(path.join(output,'result.json'),JSON.stringify(result,null,2));console.log(JSON.stringify(result));
 };
